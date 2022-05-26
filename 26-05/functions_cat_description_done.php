@@ -757,8 +757,20 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
     $product = new WC_Product_Variable( $product_id );
     $product->save();
     $product->set_sku($data[0]['sku']);
+    $product->set_description($data[0]['other_desciption']);
+    $cat_term = wp_insert_term(
+      'ABC-Category', // the term 
+      'product_cat', // the taxonomy
+      array(
+          'description'=> 'ABC Category description',
+          'slug' => 'ABC-category'
+      )
+    );
+    $CAT_term_id = get_term_by( 'name', 'ABC-Category', 'product_cat' )->term_id;
+      // print_r($term_id);
+      // exit();
+    wp_set_object_terms( $product_id, $CAT_term_id, 'product_cat' );
     $product->save();
-
   }
   update_post_meta( $product_id, '_print_api_product_sku', $data[0]['sku']); //will use to update product
   update_post_meta( $product_id, '_print_api_product', 'trade_print' ); //will use to update product
@@ -773,45 +785,44 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
     $key = strtolower($key);
   
     $attribute = new WC_Product_Attribute();
-    $attribute->set_id(0);
-    $attribute->set_name($key); //attribute name 
-  
-    $option_string = '';
-      foreach ($values as $val) {
-        $option_string = $option_string . $val . ' | '; //attribute value
-      }
-      $option_string = substr($option_string,0,-3); // removing last ' | '
-      $attribute->set_options(explode(WC_DELIMITER, $option_string)); // set value 
+    $attribute->set_id(0);    
+     
+      if($key == 'medicine_weight' || $key == 'medicine_type' || $key == 'medicine_company')
+      {
+        $attribute->set_name($key); //attribute name 
+        $option_string = '';
+        foreach ($values as $val) {
+          $option_string = $option_string . $val . ' | '; //attribute value
+        }
+        $option_string = substr($option_string,0,-3); // removing last ' | '
+        $attribute->set_options(explode(WC_DELIMITER, $option_string)); // set value
+        if(count($values)>1){ // if variation 
+          $attribute->set_visible(false);
+          $attribute->set_variation(true);
+        }else{ //if not varriation
+          $attribute->set_visible(true);
+          $attribute->set_variation(false);
+          $term = add_new_attribute($key, $values); //29
+              $at_val = implode(',',$values);
+              if($key == 'medicine_type')
+              {
+                  $at_val = ucwords($at_val);
+              }
 
-      if(count($values)>1){ // if variation 
-        $attribute->set_visible(false);
-        $attribute->set_variation(true);
-      }else{ //if not varriation
-        $attribute->set_visible(true);
-        $attribute->set_variation(false);
-        $term = add_new_attribute($key, $values); //29
-      
-        if($key == 'medicine_weight' || $key == 'medicine_type' || $key == 'medicine_company')
-          {
-            $at_val = implode(',',$values);
-            if($key == 'medicine_type')
-            {
-                $at_val = ucwords($at_val);
-            }
-
-            $term_slug = sanitize_title($key);
-            $taxonomy = 'pa_'.$key;       
-            $term_taxonomy_ids = wp_set_object_terms($product_id, $at_val, $taxonomy, true);            
-                // Create product attributes array
-                $data_attr[$i] = array(
-                    'name' => $taxonomy, // set attribute name
-                    'value' => $at_val, // set attribute value
-                    'is_visible' => 1,
-                    'is_variation' => 0,
-                    'is_taxonomy' => 1
-                );
-              $i++;        
-          }
+              $term_slug = sanitize_title($key);
+              $taxonomy = 'pa_'.$key;       
+              $term_taxonomy_ids = wp_set_object_terms($product_id, $at_val, $taxonomy, true);            
+                  // Create product attributes array
+                  $data_attr[$i] = array(
+                      'name' => $taxonomy, // set attribute name
+                      'value' => $at_val, // set attribute value
+                      'is_visible' => 1,
+                      'is_variation' => 0,
+                      'is_taxonomy' => 1
+                  );
+                $i++;        
+            
+        }
       }
     // $term = add_new_attribute($key, $values); //29
     if($key == 'sku')
@@ -821,6 +832,16 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
         $sku = $sku_value;
       }
     }
+    // elseif($key == 'other_desciption')
+    // {
+    //   foreach($values as $description_value)
+    //   {
+    //     $product->set_description( $new_short_description );
+    //     // print($description_value);
+    //   }
+    //   // exit();
+    //   $product->save();
+    // }
     elseif($key=='previous_price_amount')
     {
       foreach($values as $price_val)
@@ -894,11 +915,11 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
                 }                
               }
             }
-            $attributes = array();
+            // $attributes = array();
             foreach($atribute_array as $key=>$values)
             {
-              $attribute = new WC_Product_Attribute();
-              $attribute->set_id(0);
+              // $attribute = new WC_Product_Attribute();
+              // $attribute->set_id(0);
               $attribute->set_name($key); //attribute name 
               $option_string = '';
               foreach ($values as $val) {
@@ -916,21 +937,25 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
               }     
               $attributes[] = $attribute;
               
-            }$product->set_attributes($attributes);
-            try{              
-              $product->save();              
             }
-            catch(Exception $e) {
-              echo $e->getMessage();
-            }
+            $product->set_attributes($attributes);
+            // try{              
+            //   $product->save();              
+            // }
+            // catch(Exception $e) {
+            //   echo $e->getMessage();
+            // }
             // Now we will add it as a attribute connected to the product
-            for ($i=0; $i<count($package_title); $i++)
-            {
-              trz_at_create_product_variation( $product_id, $package_title[$i]);
-              $product->save();
-            }
+            
           }
-         
+          $data_attr[$i] = array(
+            'name' => 'pa_'.$key, // set attribute name
+            'value' => $option_string, // set attribute value
+            'is_visible' => 1,
+            'is_variation' => 1,
+            'is_taxonomy' => 1
+          );
+          $i++;
         }         
       }     
     }
@@ -992,13 +1017,25 @@ function trz_at_add_variation_product($data,$col_head, $trz_at_variations,$prev_
           }
           
     }
+    
         
   }     
   // $product->save();
 
   update_post_meta($product_id, '_product_attributes', $data_attr);
+  $variation_post_id = $product_id;
+  $arr_custom_attr_values = explode("|", $option_string);   
+  // print_r($package_title);
+  // exit();  
+  for ($j=0; $j<count($package_title); $j++)
+  {
+      $variation_post_id += $i;
+      $variation_post_id = trz_at_create_product_variation( $product_id, $package_title[$j]);
+      update_post_meta( $variation_post_id, 'attribute_package_size', $arr_custom_attr_values[$j]);
+  }
   // update_post_meta($product_id, '_product_attributes', $data_attr);
   $product_attributes = get_post_meta($product_id, '_product_attributes', true);  
+  
 }
 function trz_at_add_product($data){
 
@@ -1065,5 +1102,6 @@ function trz_at_create_product_variation( $product_id, $variation_data ){
     
   $variation->set_width($variation_data['flat_width']); // weight (reseting)
   $variation->set_height($variation_data['flat_height']); // height (reseting)    
-  $variation->save(); // Save the data    
+  $variation->save(); // Save the data 
+  return $variation_id;   
 }
